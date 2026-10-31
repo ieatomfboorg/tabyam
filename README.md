@@ -52,7 +52,9 @@ To turn off, press Kill, or your toggle keybind. To record a toggle keybind, hea
 
 ## Status
 
-Developed and tested on Arch linux. If Tabyam doesn't work or doesn't function properly on an alternative distro, please do not hesitate to open an issue describing what won't work or what doesn't work properly.
+This project is mostly targeted towards the osu! community and artists that can't afford a drawing tablet.
+
+Developed and tested on Arch Linux. If Tabyam doesn't work or doesn't function properly on an alternative distro, please do not hesitate to open an issue describing what won't work or what doesn't work properly.
 A Windows release is planned.
 
 ## License
