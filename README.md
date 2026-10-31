@@ -35,6 +35,9 @@ sudo dnf install python3 python3-evdev python3-pyqt6
 
 ## Installation
 
+To Acquire and start using Tabyam, either download the package from Releases, or run the install script.
+                                                                                        Note that the script is a Linux only.
+
 ```
 git clone https://github.com/ieatomfboorg/tabyam
 cd tabyam
