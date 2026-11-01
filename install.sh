@@ -27,9 +27,9 @@ if python3 -c "import evdev, PyQt6" >/dev/null 2>&1; then
 elif command -v pacman >/dev/null 2>&1; then
     sudo pacman -S --needed --noconfirm python python-evdev python-pyqt6 qt6-svg
 elif command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get install -y python3 python3-evdev python3-pyqt6
+    sudo apt-get install -y python3 python3-evdev python3-pyqt6 libqt6svg6
 elif command -v dnf >/dev/null 2>&1; then
-    sudo dnf install -y python3 python3-evdev python3-pyqt6
+    sudo dnf install -y python3 python3-evdev python3-pyqt6 qt6-qtsvg
 else
     echo "Your distro doesn't use pacman, apt or dnf. Install python3, python-evdev and PyQt6 manually using your package manager, then run this script again."
     exit 1
