@@ -25,7 +25,7 @@ BIN="$HOME/.local/bin"
 if python3 -c "import evdev, PyQt6" >/dev/null 2>&1; then
     echo "Dependencies already installed."
 elif command -v pacman >/dev/null 2>&1; then
-    sudo pacman -S --needed --noconfirm python python-evdev python-pyqt6
+    sudo pacman -S --needed --noconfirm python python-evdev python-pyqt6 qt6-svg
 elif command -v apt-get >/dev/null 2>&1; then
     sudo apt-get install -y python3 python3-evdev python3-pyqt6
 elif command -v dnf >/dev/null 2>&1; then
@@ -36,7 +36,9 @@ else
 fi
 
 mkdir -p "$DEST" "$BIN" "$DATA/applications"
+mkdir -p "$DEST/assets"
 cp "$DIR/core.py" "$DIR/ui.py" "$DEST/"
+cp "$DIR/assets/icon.svg" "$DEST/assets/"
 
 cat > "$BIN/tabyam" <<EOF
 #!/bin/sh
@@ -49,6 +51,7 @@ cat > "$DATA/applications/tabyam.desktop" <<EOF
 Type=Application
 Name=Tabyam
 Comment=Use your touchpad as a drawing tablet
+Icon=$DEST/assets/icon.svg
 Exec=$BIN/tabyam
 Terminal=false
 Categories=Utility;

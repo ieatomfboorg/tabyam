@@ -4,6 +4,13 @@ import signal
 import subprocess
 import sys
 import time
+
+if len(sys.argv) > 1 and sys.argv[1] == "--core":
+    sys.argv = [sys.argv[0]] + sys.argv[2:]
+    import core
+    core.main()
+    sys.exit(0)
+
 from PyQt6.QtCore import QEasingCurve, QPointF, QProcess, QRectF, Qt, QTimer, QVariantAnimation, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
@@ -13,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 PY = sys.executable
 CORE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "core.py")
+CORE_CMD = [PY, "--core"] if getattr(sys, "frozen", False) else [PY, CORE]
 CONF = os.path.expanduser("~/.config/tabyam/config.json")
 ACCENTS = ["#2563eb", "#7c3aed", "#db2777", "#16a34a", "#ea580c"]
 PRESETS = [("Full", None), ("16:9", (16, 9)), ("16:10", (16, 10)), ("4:3", (4, 3)), ("3:4", (3, 4)), ("1:1", (1, 1)), ("Quarter", "q")]
@@ -72,21 +80,7 @@ def save_conf(d):
 
 
 def make_icon(ac):
-    pm = QPixmap(64, 64)
-    pm.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(ac))
-    p.drawRoundedRect(QRectF(4, 4, 56, 56), 14, 14)
-    p.setPen(QColor("white"))
-    f = QFont()
-    f.setBold(True)
-    f.setPixelSize(38)
-    p.setFont(f)
-    p.drawText(QRectF(0, 0, 64, 64), Qt.AlignmentFlag.AlignCenter, "T")
-    p.end()
-    return QIcon(pm)
+    return QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "icon.svg"))
 
 
 def pretty(names):
@@ -867,7 +861,7 @@ class Window(QWidget):
                 return
         x, y, w, h = self.canvas.area
         W, H = self.pad["w"], self.pad["h"]
-        cmd = [PY, CORE, "-area", str(int(x * W)), str(int(y * H)), str(int(w * W)), str(int(h * H))]
+        cmd = CORE_CMD + ["-area", str(int(x * W)), str(int(y * H)), str(int(w * W)), str(int(h * H))]
         if not self.conf["tap"]:
             cmd.append("-notap")
         self.proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True)
