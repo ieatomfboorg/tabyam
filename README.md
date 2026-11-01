@@ -24,19 +24,19 @@ Run one of following commands based on your distro :
 Arch, Manjaro, EndeavourOS:
 
 ```
-sudo pacman -S python python-evdev python-pyqt6
+sudo pacman -S python python-evdev python-pyqt6 qt6-svg
 ```
 
 Debian, Ubuntu, Mint:
 
 ```
-sudo apt install python3 python3-evdev python3-pyqt6
+sudo apt install python3 python3-evdev python3-pyqt6 libqt6svg6
 ```
 
 Fedora:
 
 ```
-sudo dnf install python3 python3-evdev python3-pyqt6
+sudo dnf install python3 python3-evdev python3-pyqt6 qt6-qtsvg
 ```
 
 ## Installation
