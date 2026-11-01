@@ -2,6 +2,8 @@
 
 Makes your trackpad function like a drawing tablet, featuring absolute positioning, Area profiles, Tap to click, and a toggle keybind.
 
+<p align="center"><img src="assets/logo.svg" width="128" alt="Tabyam logo"></p>
+
 ## Features
 
 - Absolute positioning: Picking any part of trackpad instantly maps it to the whole screen
