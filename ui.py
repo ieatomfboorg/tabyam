@@ -923,6 +923,10 @@ class Window(QWidget):
             sp.setGeometry(self.rect())
 
     def closeEvent(self, ev):
+        if not getattr(self, "quitting", False) and QSystemTrayIcon.isSystemTrayAvailable():
+            ev.ignore()
+            self.hide()
+            return
         self.cancel_record()
         self.stop_listener()
         self.stop_core()
@@ -934,9 +938,49 @@ app.setStyle("Fusion")
 app.setApplicationName("Tabyam")
 app.setApplicationDisplayName("Tabyam")
 app.setDesktopFileName("tabyam")
+from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+
+app.setQuitOnLastWindowClosed(False)
 win = Window()
 win.resize(1040, 700)
 win.setMinimumSize(860, 620)
 win.show()
 win.splash.start()
+
+tray = QSystemTrayIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "icon.svg")), app)
+menu = QMenu()
+
+
+def show_win():
+    win.showNormal()
+    win.raise_()
+    win.activateWindow()
+
+
+def quit_app():
+    win.quitting = True
+    win.close()
+    app.quit()
+
+
+act = menu.addAction("Run")
+act.triggered.connect(win.go.click)
+menu.addAction("Quit").triggered.connect(quit_app)
+tray.setContextMenu(menu)
+tray.activated.connect(lambda r: show_win() if r == QSystemTrayIcon.ActivationReason.Trigger else None)
+
+
+def refresh_tray():
+    on = win.proc is not None
+    act.setText("Kill" if on else "Run")
+    tray.setToolTip("Tabyam: " + ("Active" if on else "Idle"))
+
+
+from PyQt6.QtCore import QTimer
+
+timer = QTimer()
+timer.timeout.connect(refresh_tray)
+timer.start(500)
+refresh_tray()
+tray.show()
 sys.exit(app.exec())
