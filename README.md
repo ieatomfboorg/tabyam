@@ -9,6 +9,7 @@ Makes your trackpad function like a drawing tablet, featuring absolute positioni
 
 
 ## Features
+<p align="center"><img src="assets/demo.gif" width="640" alt="Tabyam demo"></p>
 
 - Absolute positioning: Picking any part of trackpad instantly maps it to the whole screen
 - Ratio presets (Full, 16:9, 16:10, 4:3, 3:4, 1:1, Quarter) Pick whatever suits your use
