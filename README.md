@@ -55,7 +55,7 @@ cd tabyam
 sh install.sh
 ```
 
-The install scipt obtains `python`, `python-evdev` and PyQt6 using your package manager (pacman, apt or dnf), adds the `tabyam` command alongside a menu entry, and sets up the permissions Tabyam needs. If your distro doesn't have neither pacman, apt or dnf, acquire the dependenices yourself then run the install script again.
+The install script obtains `python`, `python-evdev` and PyQt6 using your package manager (pacman, apt or dnf), adds the `tabyam` command alongside a menu entry, and sets up the permissions Tabyam needs. If your distro doesn't have neither pacman, apt or dnf, acquire the dependencies yourself then run the install script again.
 
 ## Use
 
