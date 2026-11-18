@@ -16,10 +16,8 @@ MSG_KEYS = "Uh oh! I can't read your keyboard for the hotkey: run setup-permissi
 MSG_UINPUT = "Uh oh! It seems like I can't open /dev/uinput: run setup-permissions.sh once, or load the uinput module"
 
 
-def find_pad(path=None):
-    if path:
-        return InputDevice(path)
-    best, score, denied = None, 0, False
+def candidates():
+    out, denied = [], False
     for p in list_devices():
         try:
             d = InputDevice(p)
@@ -35,15 +33,61 @@ def find_pad(path=None):
                 s = 2
             elif e.BTN_TOOL_FINGER in keys:
                 s = 1
-        if s > score:
-            if best:
-                best.close()
-            best, score = d, s
+        if s:
+            out.append((s, d))
         else:
             d.close()
-    if best is None and denied:
+    if not out and denied:
         raise PermissionError
+    out.sort(key=lambda t: -t[0])
+    return out
+
+
+def find_pad(ref=None):
+    if ref and ref.startswith("/"):
+        return InputDevice(ref)
+    best = None
+    for s, d in candidates():
+        if best is None and (not ref or d.name == ref):
+            best = d
+        else:
+            d.close()
     return best
+
+
+def describe(d):
+    ax, ay = d.absinfo(e.ABS_X), d.absinfo(e.ABS_Y)
+    return {"name": d.name, "path": d.path, "w": ax.max - ax.min, "h": ay.max - ay.min, "rx": ax.resolution, "ry": ay.resolution}
+
+
+def listing():
+    out = []
+    for s, d in candidates():
+        out.append(describe(d))
+        d.close()
+    print(json.dumps(out))
+
+
+def watch(dev, ax, ay, W, H):
+    x = y = 0.0
+    down = dirty = False
+    last = 0.0
+    for ev in dev.read_loop():
+        if ev.type == e.EV_ABS and ev.code == e.ABS_X:
+            x = (ev.value - ax.min) / W
+            dirty = True
+        elif ev.type == e.EV_ABS and ev.code == e.ABS_Y:
+            y = (ev.value - ay.min) / H
+            dirty = True
+        elif ev.type == e.EV_KEY and ev.code == e.BTN_TOUCH:
+            down = bool(ev.value)
+            dirty = True
+        elif ev.type == e.EV_SYN and dirty:
+            now = time.monotonic()
+            if now - last >= 0.016 or not down:
+                print(json.dumps({"x": round(x, 4), "y": round(y, 4), "d": down}), flush=True)
+                last = now
+                dirty = False
 
 
 def find_keyboards(skip=None):
@@ -149,6 +193,8 @@ def main():
     ap.add_argument("-record", action="store_true")
     ap.add_argument("-keys", nargs="*", default=[])
     ap.add_argument("-listen", action="store_true")
+    ap.add_argument("-list", action="store_true")
+    ap.add_argument("-watch", action="store_true")
     a = ap.parse_args()
     limit = a.seconds + a.minutes * 60 + a.hours * 3600
     tap = [not a.notap]
@@ -178,6 +224,13 @@ def main():
             pass
         return
 
+    if a.list:
+        try:
+            listing()
+        except PermissionError:
+            sys.exit(MSG_INPUT)
+        return
+
     try:
         dev = find_pad(a.device)
     except PermissionError:
@@ -189,8 +242,16 @@ def main():
 
     ax, ay = dev.absinfo(e.ABS_X), dev.absinfo(e.ABS_Y)
     W, H = ax.max - ax.min, ay.max - ay.min
+    if a.watch:
+        try:
+            watch(dev, ax, ay, W, H)
+        except (KeyboardInterrupt, OSError):
+            pass
+        finally:
+            dev.close()
+        return
     if a.info:
-        print(json.dumps({"name": dev.name, "path": dev.path, "w": W, "h": H, "rx": ax.resolution, "ry": ay.resolution}))
+        print(json.dumps(describe(dev)))
         return
 
     area = a.area or [0, 0, W, H]
@@ -287,4 +348,5 @@ def main():
         ui.close()
 
 
-main()
+if __name__ == "__main__":
+    main()
