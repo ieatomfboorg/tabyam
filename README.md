@@ -13,6 +13,8 @@ Makes your trackpad function like a drawing tablet, featuring absolute positioni
 - [Use](#use)
 - [Status](#status)
 
+  <p align="center"><img src="assets/demo.gif" width="640" alt="Tabyam demo"></p>
+
 ## Regarding the vibecoded version
 
 It has been permanently removed, and all pieces in this version are self made.
@@ -56,8 +58,6 @@ sh install.sh
 The install script obtains `python`, `python-evdev` and PyQt6 using your package manager (pacman, apt or dnf), adds the `tabyam` command alongside a menu entry, and sets up the permissions Tabyam needs. If your distro doesn't have pacman, apt or dnf, acquire the dependencies yourself then run the install script again.
 
 # Features
-
-<p align="center"><img src="assets/demo.gif" width="640" alt="Tabyam demo"></p>
 
 - Absolute positioning: Picking any part of trackpad instantly maps it to the whole screen.
 - Ratio presets (Full, 16:9, 16:10, 4:3, 3:4, 1:1, Quarter): Pick whatever suits you.
