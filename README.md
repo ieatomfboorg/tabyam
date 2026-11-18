@@ -1,3 +1,7 @@
+# Regarding the vibecoded version
+
+it has been permanently removed, and all pieces in this version are self made.
+
 # Tabyam
 
 Makes your trackpad function like a drawing tablet, featuring absolute positioning, Area profiles, Tap to click, and a toggle keybind.
