@@ -1,5 +1,4 @@
 import json
-import math
 import os
 import signal
 import subprocess
@@ -12,10 +11,10 @@ if len(sys.argv) > 1 and sys.argv[1] == "--core":
     core.main()
     sys.exit(0)
 
-from PyQt6.QtCore import QEasingCurve, QPointF, QProcess, QRectF, Qt, QTimer, QVariantAnimation, pyqtSignal
+from PyQt6.QtCore import QPointF, QProcess, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
-    QApplication, QButtonGroup, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QInputDialog,
+    QApplication, QButtonGroup, QDialog, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QInputDialog,
     QLabel, QMenu, QPushButton, QStackedWidget, QVBoxLayout, QWidget,
 )
 
@@ -26,8 +25,8 @@ CONF = os.path.expanduser("~/.config/tabyam/config.json")
 ACCENTS = ["#2563eb", "#7c3aed", "#db2777", "#16a34a", "#ea580c"]
 PRESETS = [("Full", None), ("16:9", (16, 9)), ("16:10", (16, 10)), ("4:3", (4, 3)), ("3:4", (3, 4)), ("1:1", (1, 1)), ("Quarter", "q")]
 PAL = {
-    "dark": {"bg": "#1b1c20", "panel": "#25262b", "text": "#e6e6e8", "title": "#ffffff", "hint": "#7f7f88", "seg": "#2c2d33", "seghover": "#36373d", "navhover": "#2f3036", "off": "#3a3b42", "pad": "#1b1c20", "padline": "#3a3b42", "ok": "#4ade80", "mute": "#8e8e96", "err": "#f87171"},
-    "light": {"bg": "#eceef2", "panel": "#ffffff", "text": "#1c1d21", "title": "#111216", "hint": "#6a6b75", "seg": "#e3e5ea", "seghover": "#d6d9e0", "navhover": "#eef0f4", "off": "#c8cbd3", "pad": "#eceef2", "padline": "#c9ccd4", "ok": "#16a34a", "mute": "#6a6b75", "err": "#dc2626"},
+    "dark": {"bg": "#1b1c20", "panel": "#25262b", "text": "#e6e6e8", "title": "#ffffff", "hint": "#7f7f88", "seg": "#2c2d33", "seghover": "#36373d", "navhover": "#2f3036", "off": "#3a3b42", "pad": "#1b1c20", "padline": "#3a3b42", "ok": "#4ade80", "mute": "#8e8e96", "err": "#f87171", "line": "#303137"},
+    "light": {"bg": "#eceef2", "panel": "#ffffff", "text": "#1c1d21", "title": "#111216", "hint": "#6a6b75", "seg": "#e3e5ea", "seghover": "#d6d9e0", "navhover": "#eef0f4", "off": "#c8cbd3", "pad": "#eceef2", "padline": "#c9ccd4", "ok": "#16a34a", "mute": "#6a6b75", "err": "#dc2626", "line": "#dcdfe5"},
 }
 HANDLES = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
 CURS = {
@@ -43,16 +42,8 @@ def clamp(v, lo, hi):
     return min(max(v, lo), hi)
 
 
-def span(t, a, b):
-    return clamp((t - a) / (b - a), 0.0, 1.0)
-
-
-def ease(x):
-    return 1 - (1 - x) ** 3
-
-
 def load_conf():
-    d = {"tap": True, "accent": 4, "theme": "dark", "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0, "stop": [], "profiles": {}}
+    d = {"tap": True, "accent": 4, "theme": "dark", "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0, "stop": [], "profiles": {}, "device": "", "seen": False}
     try:
         with open(CONF) as f:
             d.update(json.load(f))
@@ -69,6 +60,9 @@ def load_conf():
     d["stop"] = [k for k in d["stop"] if isinstance(k, str)][:3]
     if not isinstance(d["profiles"], dict):
         d["profiles"] = {}
+    if not isinstance(d["device"], str):
+        d["device"] = ""
+    d["seen"] = bool(d["seen"])
     try:
         d["w"] = clamp(float(d["w"]), 0.1, 1.0)
         d["h"] = clamp(float(d["h"]), 0.1, 1.0)
@@ -103,37 +97,45 @@ def pretty(names):
 
 
 def sheet(ac, p):
+    hov = QColor(ac).lighter(112).name()
+    prs = QColor(ac).darker(115).name()
     return f"""
 #root {{ background: {p['bg']}; }}
 QDialog {{ background: {p['bg']}; }}
-QLabel {{ color: {p['text']}; font-size: 14px; background: transparent; }}
-QLabel#title {{ color: {p['title']}; font-size: 34px; font-weight: 800; padding: 4px 8px 16px 8px; }}
-QLabel#h {{ color: {ac}; font-size: 18px; font-weight: 800; padding-top: 10px; }}
+QLabel {{ color: {p['text']}; font-size: 13px; background: transparent; }}
+QLabel#title {{ color: {p['title']}; font-size: 20px; font-weight: 700; padding: 4px 8px 16px 8px; }}
+QLabel#h {{ color: {p['hint']}; font-size: 11px; font-weight: 700; padding-top: 8px; }}
 QLabel#hint {{ color: {p['hint']}; font-size: 12px; }}
-QLabel#strip {{ background: {p['seg']}; border-radius: 10px; padding: 10px 14px; }}
-QLabel#page {{ color: {p['title']}; font-size: 26px; font-weight: 800; padding: 2px 2px 0 2px; }}
-QFrame#card {{ background: {p['panel']}; border-radius: 14px; }}
-QFrame#statusbox {{ background: {p['seg']}; border-radius: 12px; }}
-QFrame#side {{ background: {p['panel']}; border-radius: 14px; }}
-QPushButton {{ font-size: 14px; border: none; color: {p['text']}; }}
-QPushButton#nav {{ background: transparent; text-align: left; padding: 11px 14px; border-radius: 10px; font-weight: 600; }}
-QPushButton#nav:hover {{ background: {p['navhover']}; }}
-QPushButton#nav:checked {{ background: {ac}; color: white; }}
-QPushButton#seg {{ background: {p['seg']}; padding: 9px 16px; border-radius: 9px; }}
-QPushButton#seg:hover {{ background: {p['seghover']}; }}
-QPushButton#seg:checked {{ background: {ac}; color: white; }}
-QPushButton#pre {{ background: {p['seg']}; padding: 9px 6px; border-radius: 9px; }}
-QPushButton#pre:hover {{ background: {p['seghover']}; }}
-QPushButton#pre:checked {{ background: {ac}; color: white; }}
-QPushButton#go {{ background: {ac}; color: white; padding: 12px; border-radius: 10px; font-weight: 700; }}
+QLabel#num {{ color: {ac}; font-size: 13px; font-weight: 700; }}
+QLabel#step {{ color: {p['title']}; font-size: 14px; font-weight: 600; }}
+QLabel#strip {{ background: {p['seg']}; color: {p['hint']}; font-size: 12px; border-radius: 8px; padding: 8px 12px; }}
+QLabel#page {{ color: {p['title']}; font-size: 22px; font-weight: 700; }}
+QFrame#card {{ background: {p['panel']}; border: 1px solid {p['line']}; border-radius: 12px; }}
+QFrame#statusbox {{ background: {p['seg']}; border-radius: 8px; }}
+QFrame#side {{ background: {p['panel']}; border: 1px solid {p['line']}; border-radius: 12px; }}
+QPushButton {{ font-size: 13px; border: none; color: {p['text']}; }}
+QPushButton#nav {{ background: transparent; color: {p['hint']}; text-align: left; padding: 10px 14px; border-radius: 8px; font-weight: 600; }}
+QPushButton#nav:hover {{ background: {p['navhover']}; color: {p['text']}; }}
+QPushButton#nav:checked {{ background: {p['seg']}; color: {p['title']}; }}
+QPushButton#seg, QPushButton#pre {{ background: {p['seg']}; padding: 8px 14px; border-radius: 8px; }}
+QPushButton#pre {{ padding: 8px 6px; }}
+QPushButton#dev {{ background: {p['seg']}; text-align: left; padding: 10px 14px; border-radius: 8px; }}
+QPushButton#seg:hover, QPushButton#pre:hover, QPushButton#dev:hover {{ background: {p['seghover']}; }}
+QPushButton#seg:pressed, QPushButton#pre:pressed, QPushButton#dev:pressed {{ background: {p['off']}; }}
+QPushButton#seg:checked, QPushButton#pre:checked, QPushButton#dev:checked {{ background: {ac}; color: white; }}
+QPushButton#go {{ background: {ac}; color: white; padding: 12px; border-radius: 8px; font-weight: 700; }}
+QPushButton#go:hover {{ background: {hov}; }}
+QPushButton#go:pressed {{ background: {prs}; }}
 QPushButton#go:checked {{ background: {p['off']}; color: {p['text']}; }}
-QDialogButtonBox QPushButton {{ background: {p['seg']}; padding: 8px 16px; border-radius: 9px; }}
-QDoubleSpinBox {{ background: {p['seg']}; border: none; border-radius: 8px; padding: 7px 10px; color: {p['text']}; font-size: 14px; min-width: 110px; selection-background-color: {ac}; }}
+QPushButton#go:checked:hover {{ background: {p['seghover']}; }}
+QDialogButtonBox QPushButton {{ background: {p['seg']}; padding: 8px 16px; border-radius: 8px; }}
+QDoubleSpinBox {{ background: {p['seg']}; border: none; border-radius: 8px; padding: 7px 10px; color: {p['text']}; font-size: 13px; min-width: 110px; selection-background-color: {ac}; }}
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0px; border: none; }}
 QLineEdit {{ background: {p['seg']}; color: {p['text']}; border: none; border-radius: 8px; padding: 7px 10px; selection-background-color: {ac}; }}
-QMenu {{ background: {p['panel']}; color: {p['text']}; border: 1px solid {p['off']}; }}
-QMenu::item {{ padding: 6px 18px; }}
+QMenu {{ background: {p['panel']}; color: {p['text']}; border: 1px solid {p['line']}; padding: 4px; }}
+QMenu::item {{ padding: 6px 18px; border-radius: 4px; }}
 QMenu::item:selected {{ background: {ac}; color: white; }}
+QToolTip {{ background: {p['panel']}; color: {p['text']}; border: 1px solid {p['line']}; padding: 4px 8px; }}
 """
 
 
@@ -337,104 +339,267 @@ class Presets(QWidget):
             self.group.setExclusive(True)
 
 
-class Splash(QWidget):
-    def __init__(self, parent, accent, pal):
-        super().__init__(parent)
-        self.accent = QColor(accent)
-        self.pal = pal
-        self.t = 0.0
-        self.alpha = 1.0
-        self.sweep = QVariantAnimation(self)
-        self.sweep.setStartValue(0.0)
-        self.sweep.setEndValue(1.0)
-        self.sweep.setDuration(2200)
-        self.sweep.setEasingCurve(QEasingCurve.Type.Linear)
-        self.sweep.valueChanged.connect(self.on_t)
-        self.sweep.finished.connect(lambda: QTimer.singleShot(300, self.fade.start))
-        self.fade = QVariantAnimation(self)
-        self.fade.setStartValue(1.0)
-        self.fade.setEndValue(0.0)
-        self.fade.setDuration(450)
-        self.fade.valueChanged.connect(self.on_alpha)
-        self.fade.finished.connect(self.hide)
+class Bench(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setMinimumSize(360, 240)
+        self.aspect = 1816 / 1101
+        self.area = [0.0, 0.0, 1.0, 1.0]
+        self.accent = QColor(ACCENTS[4])
+        self.pal = PAL["dark"]
+        self.pt = None
+        self.trail = []
+        self.note = ""
+        self.last = time.monotonic()
+        self.idle = QTimer(self)
+        self.idle.setInterval(5000)
+        self.idle.timeout.connect(self.update)
+        self.idle.start()
+        self.timer = QTimer(self)
+        self.timer.setInterval(30)
+        self.timer.timeout.connect(self.step)
 
-    def start(self):
-        self.t = 0.0
-        self.alpha = 1.0
-        self.show()
-        self.raise_()
-        self.sweep.start()
+    def pad_rect(self):
+        m = 8
+        aw, ah = self.width() - 2 * m, self.height() - 2 * m - 32
+        if aw / ah > self.aspect:
+            h = ah
+            w = h * self.aspect
+        else:
+            w = aw
+            h = w / self.aspect
+        return QRectF((self.width() - w) / 2, m + (ah - h) / 2, w, h)
 
-    def on_t(self, v):
-        self.t = v
+    def showEvent(self, ev):
+        super().showEvent(ev)
+        self.last = time.monotonic()
+
+    def feed(self, x, y, d):
+        self.last = time.monotonic()
+        if d:
+            self.pt = (x, y)
+            self.trail.append([x, y, 1.0])
+            del self.trail[:-40]
+        else:
+            self.pt = None
+        if not self.timer.isActive():
+            self.timer.start()
         self.update()
 
-    def on_alpha(self, v):
-        self.alpha = v
+    def step(self):
+        for t in self.trail:
+            t[2] -= 0.05
+        self.trail = [t for t in self.trail if t[2] > 0]
+        if not self.trail:
+            self.timer.stop()
         self.update()
+
+    def inside(self):
+        if not self.pt:
+            return None
+        x, y, w, h = self.area
+        return x <= self.pt[0] <= x + w and y <= self.pt[1] <= y + h
 
     def paintEvent(self, ev):
         q = QPainter(self)
         q.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, hgt, t = self.width(), self.height(), self.t
-        q.setOpacity(self.alpha)
-        q.fillRect(self.rect(), QColor(self.pal["bg"]))
-        a_pad = ease(span(t, 0.0, 0.22))
-        pw = min(w * 0.34, 400) * (0.94 + 0.06 * a_pad)
-        ph = pw / 1.65
-        pad = QRectF((w - pw) / 2, hgt / 2 - ph / 2 - 50, pw, ph)
-        q.setOpacity(self.alpha * a_pad)
+        p = self.pad_rect()
         q.setPen(QPen(QColor(self.pal["padline"]), 2))
-        q.setBrush(QColor(self.pal["panel"]))
-        q.drawRoundedRect(pad, 14, 14)
-        g = ease(span(t, 0.18, 0.55))
-        aw, ah = pad.width() * 0.66 * g, pad.height() * 0.62 * g
-        ar = QRectF(pad.center().x() - aw / 2, pad.center().y() - ah / 2, aw, ah)
-        if g > 0.02:
-            fill = QColor(self.accent)
-            fill.setAlpha(70)
-            q.setPen(QPen(self.accent, 2))
-            q.setBrush(fill)
-            q.drawRoundedRect(ar, 4, 4)
-            dot = QColor(self.accent).lighter(160)
-            dot.setAlpha(160)
-            q.setPen(Qt.PenStyle.NoPen)
-            q.setBrush(dot)
-            step = 12.0
-            cols = max(int(ar.width() // step), 1)
-            rows = max(int(ar.height() // step), 1)
-            ox = ar.left() + (ar.width() - (cols - 1) * step) / 2
-            oy = ar.top() + (ar.height() - (rows - 1) * step) / 2
-            for i in range(cols):
-                for j in range(rows):
-                    q.drawEllipse(QPointF(ox + i * step, oy + j * step), 1.1, 1.1)
-        f = span(t, 0.5, 0.9)
-        if f > 0 and ar.width() > 4:
-            q.setPen(Qt.PenStyle.NoPen)
-            for k in range(9, -1, -1):
-                ft = max(f - k * 0.03, 0.0)
-                px = ar.left() + ar.width() * (0.12 + 0.76 * ft)
-                py = ar.center().y() + math.sin(ft * math.pi * 2.5) * ar.height() * 0.3
-                c = QColor(self.accent).lighter(130)
-                c.setAlpha(int(230 * (1 - k / 10)))
-                q.setBrush(c)
-                r = 7 - k * 0.45
-                q.drawEllipse(QPointF(px, py), r, r)
-        ty = pad.bottom() + 28
-        q.setOpacity(self.alpha * ease(span(t, 0.3, 0.62)))
-        f1 = QFont()
-        f1.setBold(True)
-        f1.setPixelSize(54)
-        f1.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2)
-        q.setFont(f1)
-        q.setPen(QColor(self.pal["title"]))
-        q.drawText(QRectF(0, ty, w, 70), Qt.AlignmentFlag.AlignCenter, "Tabyam")
-        q.setOpacity(self.alpha * ease(span(t, 0.5, 0.8)))
-        f2 = QFont()
-        f2.setPixelSize(17)
-        q.setFont(f2)
-        q.setPen(QColor(self.pal["mute"]))
-        q.drawText(QRectF(0, ty + 70, w, 28), Qt.AlignmentFlag.AlignCenter, "Your touchpad, as a tablet.")
+        q.setBrush(QColor(self.pal["pad"]))
+        q.drawRoundedRect(p, 10, 10)
+        x, y, w, h = self.area
+        ar = QRectF(p.x() + x * p.width(), p.y() + y * p.height(), w * p.width(), h * p.height())
+        fill = QColor(self.accent)
+        fill.setAlpha(60)
+        q.setPen(QPen(self.accent, 2))
+        q.setBrush(fill)
+        q.drawRoundedRect(ar, 4, 4)
+        q.setPen(Qt.PenStyle.NoPen)
+        for tx, ty, a in self.trail:
+            c = QColor(self.accent).lighter(150)
+            c.setAlphaF(max(a, 0.0) * 0.6)
+            q.setBrush(c)
+            q.drawEllipse(QPointF(p.x() + tx * p.width(), p.y() + ty * p.height()), 4, 4)
+        if self.pt:
+            q.setPen(QPen(QColor(self.pal["pad"]), 2))
+            q.setBrush(QColor(self.accent).lighter(160))
+            q.drawEllipse(QPointF(p.x() + self.pt[0] * p.width(), p.y() + self.pt[1] * p.height()), 8, 8)
+        ins = self.inside()
+        if self.note:
+            msg, col = self.note, self.pal["mute"]
+        elif ins is None:
+            if time.monotonic() - self.last > 120:
+                msg = "Pressing? I can't really detect anything~ Check if your trackpad is not toggled off."
+            else:
+                msg = "Touch your trackpad!"
+            col = self.pal["mute"]
+        elif ins:
+            msg, col = "Inside the usable area.", self.pal["ok"]
+        else:
+            msg, col = "Outside the usable area. Any input here will be ignored.", self.pal["err"]
+        q.setPen(QColor(col))
+        q.drawText(QRectF(0, self.height() - 28, self.width(), 24), Qt.AlignmentFlag.AlignCenter, msg)
+
+
+class DevicePicker(QWidget):
+    picked = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.names = None
+        self.lay = QVBoxLayout(self)
+        self.lay.setContentsMargins(0, 0, 0, 0)
+        self.lay.setSpacing(8)
+        self.group = QButtonGroup(self)
+        self.empty = QLabel("No touchpad found. Check some permissions and drivers, then rescan.")
+        self.empty.setObjectName("hint")
+        self.empty.setWordWrap(True)
+        self.lay.addWidget(self.empty)
+
+    def set_devices(self, devices, current):
+        names = [d["name"] for d in devices]
+        if names != self.names:
+            self.names = names
+            for b in self.group.buttons():
+                self.group.removeButton(b)
+                b.setParent(None)
+                b.deleteLater()
+            for i, n in enumerate(names):
+                b = QPushButton(n)
+                b.setObjectName("dev")
+                b.setCheckable(True)
+                b.setCursor(Qt.CursorShape.PointingHandCursor)
+                b.clicked.connect(lambda _, n=n: self.picked.emit(n))
+                self.group.addButton(b, i)
+                self.lay.addWidget(b)
+        self.empty.setVisible(not names)
+        for b in self.group.buttons():
+            b.setChecked(b.text() == current)
+
+
+class Guide(QDialog):
+    def __init__(self, win):
+        super().__init__(win)
+        self.win = win
+        self.step = 0
+        self.setWindowTitle("Welcome to Tabyam")
+        self.setMinimumSize(640, 540)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(28, 24, 28, 24)
+        root.setSpacing(16)
+        self.stack = QStackedWidget()
+        root.addWidget(self.stack, 1)
+
+        a = QWidget()
+        al = QVBoxLayout(a)
+        al.setContentsMargins(0, 0, 0, 0)
+        al.setSpacing(12)
+        al.addWidget(win.lab("Welcome to Tabyam", "page"))
+        al.addWidget(win.lab("Your trackpad, as a tablet. Wherever your finger lands is wherever the cursor lands.", "hint"))
+        al.addSpacing(12)
+        rows = (
+            ("1", "Pick your touchpad", "Pick the trackpad that will be used as a drawing tablet. Most laptops have one~"),
+            ("2", "Shape your area", "Map a suitable area for whatever you intend to use it for."),
+            ("3", "Press Run", "Press Run and your trackpad will function like a drawing tablet. Setup a toggle keybind in the Settings tab to Run and Kill Tabyam conveniently."),
+        )
+        for n, t, d in rows:
+            row = QHBoxLayout()
+            row.setSpacing(12)
+            num = win.lab(n, "num")
+            num.setFixedWidth(16)
+            num.setAlignment(Qt.AlignmentFlag.AlignTop)
+            col = QVBoxLayout()
+            col.setSpacing(2)
+            col.addWidget(win.lab(t, "step"))
+            col.addWidget(win.lab(d, "hint"))
+            row.addWidget(num)
+            row.addLayout(col, 1)
+            al.addLayout(row)
+            al.addSpacing(4)
+        al.addStretch()
+        self.stack.addWidget(a)
+
+        b = QWidget()
+        bl = QVBoxLayout(b)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(8)
+        bl.addWidget(win.lab("Pick your touchpad", "page"))
+        bl.addWidget(win.lab("Select \"one\" of the detected trackpads from this dropdown list to be used as a drawing tablet.", "hint"))
+        bl.addSpacing(8)
+        self.picker = DevicePicker()
+        self.picker.picked.connect(win.on_device)
+        win.pickers.append(self.picker)
+        self.picker.set_devices(win.devices, win.pad["name"] if win.pad else "")
+        bl.addWidget(self.picker)
+        rs = QPushButton("Rescan")
+        rs.setObjectName("seg")
+        rs.setCursor(Qt.CursorShape.PointingHandCursor)
+        rs.clicked.connect(win.on_rescan)
+        rr = QHBoxLayout()
+        rr.addWidget(rs)
+        rr.addStretch()
+        bl.addLayout(rr)
+        bl.addStretch()
+        self.stack.addWidget(b)
+
+        c = QWidget()
+        cl = QVBoxLayout(c)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(8)
+        cl.addWidget(win.lab("Try it out", "page"))
+        cl.addWidget(win.lab("This test bench indicates how Tabyam works, and if it works.", "hint"))
+        cl.addSpacing(8)
+        self.bench = win.make_bench()
+        cl.addWidget(self.bench, 1)
+        self.stack.addWidget(c)
+
+        foot = QHBoxLayout()
+        foot.setSpacing(8)
+        self.count = win.lab("", "hint")
+        self.skip = QPushButton("Skip")
+        self.back = QPushButton("Back")
+        self.fwd = QPushButton("Next")
+        for btn, name in ((self.skip, "seg"), (self.back, "seg"), (self.fwd, "go")):
+            btn.setObjectName(name)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.fwd.setMinimumWidth(110)
+        foot.addWidget(self.count)
+        foot.addStretch()
+        foot.addWidget(self.skip)
+        foot.addWidget(self.back)
+        foot.addWidget(self.fwd)
+        root.addLayout(foot)
+        self.skip.clicked.connect(self.reject)
+        self.back.clicked.connect(lambda: self.show_step(self.step - 1))
+        self.fwd.clicked.connect(self.advance)
+        self.show_step(0)
+
+    def show_step(self, i):
+        self.step = i
+        self.stack.setCurrentIndex(i)
+        self.count.setText(f"{i + 1} of 3")
+        self.back.setVisible(i > 0)
+        self.skip.setVisible(i < 2)
+        self.fwd.setText("Done" if i == 2 else "Next")
+        self.win.update_watch()
+
+    def advance(self):
+        if self.step == 2:
+            self.accept()
+        else:
+            self.show_step(self.step + 1)
+
+    def done(self, r):
+        w = self.win
+        w.conf["seen"] = True
+        save_conf(w.conf)
+        if self.bench in w.benches:
+            w.benches.remove(self.bench)
+        if self.picker in w.pickers:
+            w.pickers.remove(self.picker)
+        w.guide = None
+        super().done(r)
+        w.update_watch()
 
 
 class Window(QWidget):
@@ -451,6 +616,13 @@ class Window(QWidget):
         self.t0 = 0.0
         self.err = ""
         self.pw, self.ph = 1816.0, 1101.0
+        self.devices = []
+        self.pickers = []
+        self.benches = []
+        self.guide = None
+        self.wat = None
+        self.wdev = ""
+        self.wbuf = ""
         ac = ACCENTS[self.conf["accent"]]
         pal = PAL[self.conf["theme"]]
         QApplication.instance().setStyleSheet(sheet(ac, pal))
@@ -460,11 +632,11 @@ class Window(QWidget):
         side.setObjectName("side")
         side.setFixedWidth(220)
         sl = QVBoxLayout(side)
-        sl.setContentsMargins(12, 12, 12, 12)
+        sl.setContentsMargins(16, 16, 16, 16)
         sl.setSpacing(4)
         sl.addWidget(self.lab("Tabyam", "title"))
         self.nav = QButtonGroup(self)
-        for i, t in enumerate(("Area", "Settings")):
+        for i, t in enumerate(("Area", "Test", "Settings")):
             b = QPushButton(t)
             b.setObjectName("nav")
             b.setCheckable(True)
@@ -480,6 +652,7 @@ class Window(QWidget):
         self.go.setCheckable(True)
         self.go.setCursor(Qt.CursorShape.PointingHandCursor)
         self.go.clicked.connect(self.toggle)
+        self.go.setToolTip("Start or stop Tabyam")
         box = QFrame()
         box.setObjectName("statusbox")
         bx = QVBoxLayout(box)
@@ -497,7 +670,7 @@ class Window(QWidget):
         o1.setSpacing(4)
         o1.addWidget(self.lab("Area", "page"))
         o1.addWidget(self.lab("Drag the box to move it, drag a dot to resize it, or scroll over it to scale it.", "hint"))
-        o1.addSpacing(8)
+        o1.addSpacing(12)
         body = QWidget()
         h = QHBoxLayout(body)
         h.setContentsMargins(0, 0, 0, 0)
@@ -511,11 +684,12 @@ class Window(QWidget):
         self.canvas.changed.connect(self.on_drag)
         self.canvas.sized.connect(self.on_sized)
         self.canvas.done.connect(self.commit)
+        self.canvas.setToolTip("Drag to move, drag a dot to resize, scroll to scale")
         left = QFrame()
         left.setObjectName("card")
         ll = QVBoxLayout(left)
-        ll.setContentsMargins(14, 14, 14, 14)
-        ll.setSpacing(10)
+        ll.setContentsMargins(16, 16, 16, 16)
+        ll.setSpacing(12)
         ll.addWidget(self.canvas, 1)
         tr = QHBoxLayout()
         tr.setSpacing(12)
@@ -534,7 +708,7 @@ class Window(QWidget):
         col.setObjectName("card")
         col.setFixedWidth(290)
         cl = QVBoxLayout(col)
-        cl.setContentsMargins(14, 8, 14, 14)
+        cl.setContentsMargins(16, 8, 16, 16)
         cl.setSpacing(6)
         cl.addWidget(self.lab("Ratio", "h"))
         self.presets = Presets()
@@ -567,18 +741,68 @@ class Window(QWidget):
         cl.addStretch()
         h.addWidget(col)
 
+        p3 = QWidget()
+        o3 = QVBoxLayout(p3)
+        o3.setContentsMargins(0, 0, 0, 0)
+        o3.setSpacing(4)
+        o3.addWidget(self.lab("Test bench", "page"))
+        o3.addWidget(self.lab("This test bench provides most necessary details to indicate how Tabyam works on your trackpad.", "hint"))
+        o3.addSpacing(12)
+        tc = QFrame()
+        tc.setObjectName("card")
+        tl = QVBoxLayout(tc)
+        tl.setContentsMargins(16, 16, 16, 16)
+        tl.addWidget(self.make_bench(), 1)
+        o3.addWidget(tc, 1)
+
         p2 = QWidget()
         v = QVBoxLayout(p2)
         v.setContentsMargins(0, 0, 0, 0)
-        v.setSpacing(14)
+        v.setSpacing(16)
         v.addWidget(self.lab("Settings", "page"))
+        cols = QHBoxLayout()
+        cols.setSpacing(16)
+        c1 = QVBoxLayout()
+        c1.setSpacing(16)
+        c2 = QVBoxLayout()
+        c2.setSpacing(16)
+        cols.addLayout(c1, 1)
+        cols.addLayout(c2, 1)
+        v.addLayout(cols, 1)
         b1, bl = self.card("Behavior")
         bl.addWidget(self.lab("Tap to click"))
         self.tap = Seg(["On", "Off"], 0 if c["tap"] else 1)
         self.tap.changed.connect(self.on_tap)
         bl.addWidget(self.tap)
         bl.addWidget(self.lab("On by default, if turned off your trackpad won't click nor drag when used.", "hint"))
-        v.addWidget(b1)
+        c1.addWidget(b1)
+        bt, tl2 = self.card("Touchpad")
+        picker = DevicePicker()
+        picker.picked.connect(self.on_device)
+        self.pickers.append(picker)
+        tl2.addWidget(picker)
+        rs = QPushButton("Rescan")
+        rs.setObjectName("seg")
+        rs.setCursor(Qt.CursorShape.PointingHandCursor)
+        rs.clicked.connect(self.on_rescan)
+        rr = QHBoxLayout()
+        rr.addWidget(rs)
+        rr.addStretch()
+        tl2.addLayout(rr)
+        tl2.addWidget(self.lab("The trackpad Tabyam turns into a tablet. Don't pretend like you have more than one~", "hint"))
+        c1.addWidget(bt)
+        bh, hl = self.card("User guide")
+        gb = QPushButton("Open user guide")
+        gb.setObjectName("seg")
+        gb.setCursor(Qt.CursorShape.PointingHandCursor)
+        gb.clicked.connect(self.open_guide)
+        gr = QHBoxLayout()
+        gr.addWidget(gb)
+        gr.addStretch()
+        hl.addLayout(gr)
+        hl.addWidget(self.lab("A quick walkthrough: how it works, picking your pad and testing it.", "hint"))
+        c1.addWidget(bh)
+        c1.addStretch()
         b2, al = self.card("Appearance")
         al.addWidget(self.lab("Theme"))
         self.theme = Seg(["Dark", "Light"], 0 if c["theme"] == "dark" else 1)
@@ -602,7 +826,7 @@ class Window(QWidget):
         self.dots.idClicked.connect(self.on_accent)
         al.addLayout(row)
         al.addWidget(self.lab("Alternative color for the app, pick to your taste.", "hint"))
-        v.addWidget(b2)
+        c2.addWidget(b2)
         b3, kl = self.card("Keybinds")
         kl.addWidget(self.lab("Toggle"))
         kr = QHBoxLayout()
@@ -621,16 +845,17 @@ class Window(QWidget):
         kr.addStretch()
         kl.addLayout(kr)
         kl.addWidget(self.lab("Click, then hold up to 3 keys and let go to save. Press them anytime to turn Tabyam on or off, even while a game has focus.", "hint"))
-        v.addWidget(b3)
-        v.addStretch()
+        c2.addWidget(b3)
+        c2.addStretch()
 
         self.stack = QStackedWidget()
         self.stack.addWidget(p1)
+        self.stack.addWidget(p3)
         self.stack.addWidget(p2)
-        self.nav.idClicked.connect(self.stack.setCurrentIndex)
+        self.nav.idClicked.connect(self.on_nav)
         root = QHBoxLayout(self)
-        root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(14)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(16)
         root.addWidget(side)
         root.addWidget(self.stack, 1)
 
@@ -648,9 +873,6 @@ class Window(QWidget):
         self.rebuild_profiles()
         self.update_status()
         self.start_listener()
-        self.splash = Splash(self, ac, pal)
-        self.splash.setGeometry(self.rect())
-        self.splash.hide()
 
     def lab(self, text, name=None):
         l = QLabel(text)
@@ -663,8 +885,8 @@ class Window(QWidget):
         f = QFrame()
         f.setObjectName("card")
         l = QVBoxLayout(f)
-        l.setContentsMargins(18, 10, 18, 16)
-        l.setSpacing(6)
+        l.setContentsMargins(20, 12, 20, 20)
+        l.setSpacing(8)
         l.addWidget(self.lab(title, "h"))
         return f, l
 
@@ -673,21 +895,35 @@ class Window(QWidget):
 
     def load_pad(self):
         self.pad = None
+        self.devices = []
+        self.scan()
+        self.refresh_pickers()
+        for bn in self.benches:
+            bn.update()
+
+    def scan(self):
         try:
-            r = subprocess.run([PY, CORE, "-info"], capture_output=True, text=True, timeout=10)
+            r = subprocess.run(CORE_CMD + ["-list"], capture_output=True, text=True, timeout=10)
             if r.returncode != 0:
                 lines = r.stderr.strip().splitlines()
                 self.err = lines[-1] if lines else "Touchpad not detected."
                 return
-            self.pad = json.loads(r.stdout)
+            self.devices = json.loads(r.stdout)
         except Exception as ex:
             self.err = str(ex)
             return
+        if not self.devices:
+            self.err = "Touchpad not detected."
+            return
+        want = self.conf["device"]
+        self.pad = next((d for d in self.devices if d["name"] == want), self.devices[0])
         self.err = ""
         p = self.pad
         self.pw = p["w"] / p["rx"] if p["rx"] else float(p["w"])
         self.ph = p["h"] / p["ry"] if p["ry"] else float(p["h"])
         self.canvas.aspect = self.pw / self.ph
+        for bn in self.benches:
+            bn.aspect = self.canvas.aspect
 
     def sync(self):
         a = self.canvas.area
@@ -840,6 +1076,10 @@ class Window(QWidget):
         self.canvas.accent = QColor(ac)
         self.canvas.pal = pal
         self.canvas.update()
+        for bn in self.benches:
+            bn.accent = QColor(ac)
+            bn.pal = pal
+            bn.update()
         self.update_status()
 
     def on_accent(self, i):
@@ -944,6 +1184,116 @@ class Window(QWidget):
         self.keybtn.setText(pretty([]))
         self.start_listener()
 
+    def refresh_pickers(self):
+        cur = self.pad["name"] if self.pad else ""
+        for pk in self.pickers:
+            pk.set_devices(self.devices, cur)
+
+    def make_bench(self):
+        bn = Bench()
+        bn.accent = QColor(ACCENTS[self.conf["accent"]])
+        bn.pal = self.pal()
+        bn.aspect = self.canvas.aspect
+        bn.area = self.canvas.area
+        self.benches.append(bn)
+        return bn
+
+    def on_nav(self, i):
+        self.stack.setCurrentIndex(i)
+        self.update_watch()
+
+    def on_device(self, name):
+        self.conf["device"] = name
+        save_conf(self.conf)
+        was = self.proc is not None
+        if was:
+            self.stop_core()
+        self.load_pad()
+        self.sync()
+        if was:
+            self.start_core()
+        self.update_status()
+
+    def on_rescan(self):
+        self.on_device(self.conf["device"])
+
+    def open_guide(self):
+        if self.guide:
+            self.guide.raise_()
+            return
+        self.guide = Guide(self)
+        self.guide.open()
+
+    def update_watch(self):
+        page = self.stack.currentIndex() == 1 and self.isVisible()
+        guide = self.guide is not None and self.guide.step == 2
+        want = (page or guide) and self.proc is None and self.pad is not None
+        note = ""
+        if self.proc is not None:
+            note = "Uh oh! Tabyam is already running, kill it to start the test."
+        elif self.pad is None:
+            note = self.err if self.err.startswith("Uh oh") else "I can't quite detect a trackpad sweetie~"
+        for bn in self.benches:
+            bn.note = note
+            bn.update()
+        if not want:
+            self.stop_watch()
+            return
+        name = self.pad["name"]
+        if self.wat is not None and self.wdev == name:
+            return
+        self.stop_watch()
+        w = QProcess(self)
+        w.readyReadStandardOutput.connect(self.watch_out)
+        w.finished.connect(self.watch_done)
+        w.start(CORE_CMD[0], CORE_CMD[1:] + ["-watch", "-device", name])
+        self.wat = w
+        self.wdev = name
+        self.wbuf = ""
+
+    def stop_watch(self):
+        w, self.wat = self.wat, None
+        self.wdev = ""
+        if w:
+            w.blockSignals(True)
+            w.kill()
+            w.waitForFinished(500)
+            w.deleteLater()
+
+    def watch_out(self):
+        if not self.wat:
+            return
+        self.wbuf += bytes(self.wat.readAllStandardOutput()).decode(errors="ignore")
+        *lines, self.wbuf = self.wbuf.split("\n")
+        for line in lines:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            for bn in self.benches:
+                bn.feed(d["x"], d["y"], d["d"])
+
+    def watch_done(self):
+        w = self.wat
+        self.wat = None
+        self.wdev = ""
+        if w is None:
+            return
+        msg = bytes(w.readAllStandardError()).decode().strip()
+        if msg:
+            for bn in self.benches:
+                bn.note = msg.splitlines()[-1]
+                bn.update()
+        w.deleteLater()
+
+    def showEvent(self, ev):
+        super().showEvent(ev)
+        self.update_watch()
+
+    def hideEvent(self, ev):
+        super().hideEvent(ev)
+        self.update_watch()
+
     def toggle(self):
         if self.go.isChecked():
             self.start_core()
@@ -960,7 +1310,7 @@ class Window(QWidget):
                 return
         x, y, w, h = self.canvas.area
         W, H = self.pad["w"], self.pad["h"]
-        cmd = CORE_CMD + ["-area", str(int(x * W)), str(int(y * H)), str(int(w * W)), str(int(h * H))]
+        cmd = CORE_CMD + ["-device", self.pad["name"], "-area", str(int(x * W)), str(int(y * H)), str(int(w * W)), str(int(h * H))]
         if not self.conf["tap"]:
             cmd.append("-notap")
         self.proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True)
@@ -1014,12 +1364,7 @@ class Window(QWidget):
             self.status.setStyleSheet(f"color: {pal['mute']}; font-weight: 700;")
         self.devlabel.setText(self.pad["name"] if self.pad else "")
         self.update_strip()
-
-    def resizeEvent(self, ev):
-        super().resizeEvent(ev)
-        sp = getattr(self, "splash", None)
-        if sp:
-            sp.setGeometry(self.rect())
+        self.update_watch()
 
     def closeEvent(self, ev):
         if not getattr(self, "quitting", False) and QSystemTrayIcon.isSystemTrayAvailable():
@@ -1028,6 +1373,7 @@ class Window(QWidget):
             return
         self.cancel_record()
         self.stop_listener()
+        self.stop_watch()
         self.stop_core()
         super().closeEvent(ev)
 
@@ -1044,7 +1390,8 @@ win = Window()
 win.resize(1100, 720)
 win.setMinimumSize(1000, 640)
 win.show()
-win.splash.start()
+if not win.conf["seen"]:
+    QTimer.singleShot(250, win.open_guide)
 
 tray = QSystemTrayIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "icon.svg")), app)
 menu = QMenu()
