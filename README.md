@@ -2,72 +2,83 @@
 
 Makes your trackpad function like a drawing tablet, featuring absolute positioning, Area profiles, Tap to click, and a toggle keybind.
 
-
-
 <p align="center"><img src="assets/logo.svg" width="384" alt="Tabyam logo"></p>
 
+## Index
 
-# Regarding the vibecoded version
+- [Installing Tabyam](#installing-tabyam)
+  - [Pre-requirements](#pre-requirements)
+  - [Installation](#installation)
+- [Features](#features)
+- [Use](#use)
+- [Status](#status)
 
-it has been permanently removed, and all pieces in this version are self made.
+## Regarding the vibecoded version
 
-## Features
-<p align="center"><img src="assets/demo.gif" width="640" alt="Tabyam demo"></p>
+It has been permanently removed, and all pieces in this version are self made.
 
-- Absolute positioning: Picking any part of trackpad instantly maps it to the whole screen
-- Ratio presets (Full, 16:9, 16:10, 4:3, 3:4, 1:1, Quarter) Pick whatever suits your use
-- Tap to click switch: On by default. Turning it off prevents the trackpad from performing any sort of clicking. 
-- Profiles: Name and save presets for future use.
-- Toggle keybind: Record a keybind to toggle Tabyam on or off.
-- Dark and light themes with a choice of accent colors.
+# Installing Tabyam
 
 ## Pre-requirements
 
-Run one of following commands based on your distro :
+Run one of following commands based on your distro:
 
-Arch, Manjaro, EndeavourOS:
+**Arch, Manjaro, EndeavourOS:**
 
-```
+```bash
 sudo pacman -S python python-evdev python-pyqt6 qt6-svg
 ```
 
-Debian, Ubuntu, Mint:
+**Debian, Ubuntu, Mint:**
 
-```
+```bash
 sudo apt install python3 python3-evdev python3-pyqt6 libqt6svg6
 ```
 
-Fedora:
+**Fedora:**
 
-```
+```bash
 sudo dnf install python3 python3-evdev python3-pyqt6 qt6-qtsvg
 ```
 
 ## Installation
 
-To Acquire and start using Tabyam, either download the package from Releases, or run the install script.
-                                                                                        Note that the script is a Linux only.
+To acquire and start using Tabyam, either download the package from Releases, or run the install script.
 
-```
+Note that the script is Linux-only.
+
+```bash
 git clone https://github.com/ieatomfboorg/tabyam
 cd tabyam
 sh install.sh
 ```
 
-The install script obtains `python`, `python-evdev` and PyQt6 using your package manager (pacman, apt or dnf), adds the `tabyam` command alongside a menu entry, and sets up the permissions Tabyam needs. If your distro doesn't have neither pacman, apt or dnf, acquire the dependencies yourself then run the install script again.
+The install script obtains `python`, `python-evdev` and PyQt6 using your package manager (pacman, apt or dnf), adds the `tabyam` command alongside a menu entry, and sets up the permissions Tabyam needs. If your distro doesn't have pacman, apt or dnf, acquire the dependencies yourself then run the install script again.
 
-## Use
+# Features
+
+<p align="center"><img src="assets/demo.gif" width="640" alt="Tabyam demo"></p>
+
+- Absolute positioning: Picking any part of trackpad instantly maps it to the whole screen.
+- Ratio presets (Full, 16:9, 16:10, 4:3, 3:4, 1:1, Quarter): Pick whatever suits you.
+- Tap to click switch: On by default. Turning it off prevents the trackpad from performing any sort of clicking.
+- Profiles: Name and save presets for future use.
+- Toggle keybind: Record a keybind to toggle Tabyam on or off.
+- Dark and light themes with a choice of accent colors.
+
+# Use
 
 1. Execute Tabyam either using a terminal or the menu entry, and pick an area that suits you, either using the preloaded presets or by making one yourself.
 2. Press Run.
 
 To turn off, press Kill, or your toggle keybind. To record a toggle keybind, head over to settings and record up to 3 keys at once.
 
-## Status
+# Status
 
 This project is mostly targeted towards the osu! community and artists that can't afford a drawing tablet.
 
 Developed and tested on Arch Linux. If Tabyam doesn't work or doesn't function properly on an alternative distro, please do not hesitate to open an issue describing what won't work or what doesn't work properly.
+
 A Windows release is planned.
 
 ## License
